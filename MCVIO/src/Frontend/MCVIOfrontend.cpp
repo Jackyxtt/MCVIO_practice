@@ -54,7 +54,8 @@ void MCVIOfrontend::addSensors(cv::FileStorage &fsSettings, ros::NodeHandle *pri
         }
 
     }
-
+    //Todo:
+    synchronizer.tracker_tag = tracker_tag;
     
 }
 
@@ -108,6 +109,44 @@ void MCVIOfrontend::addMonocular(cv::FileNode &fsSettings, ros::NodeHandle *priv
         fsSettings["fisheye_path"] >> fisheye_path;
         monocam->setFisheye(fisheye_path);
     }
+    fsSettings["visualize"] >> monocam->visualize;
+    monocam->init_visualization();
+    fsSettings["max_cnt"] >> monocam->MAX_CNT;
+    fsSettings["min_dist"] >> monocam->MIN_DIST;
+    fsSettings["freq"] >> monocam->FREQ;
+    fsSettings["F_threshold"] >> monocam->F_THRESHOLD;
+    fsSettings["equalize"] >> monocam->EQUALIZE;
+    LOG(INFO) << "Finish loading tracker parameters";
+    if (sensors_tag.find(name) != sensors_tag.end())
+    {
+        LOG(INFO) << "Duplicated sensors. Check configureation file!";
+        assert(sensors_tag.find(name) == sensors_tag.end());
+    }
+
+    // add new feature tracker and associate it with the camera
+    monocam->tracker_idx = trackerData.size();
+    // sensors_tag[name] = make_pair(sensors.size(), trackerData.size());
+    sensors_tag[name] = sensors.size();
+
+    sensors.push_back(monocam);
+
+
+    // TODO:完善FeatureTracker类
+    // std::shared_ptr<FeatureTracker> tracker =
+    //     std::make_shared<FeatureTracker>(FeatureTracker());
+
+    // tracker->cam = monocam;
+
+
+    // register camera
+    string config_file;
+    fsSettings["camera_config_file"] >> config_file;
+    // tracker->readIntrinsicParameter(config_file);//tracker从yaml文件中读取相机参数
+    LOG(INFO) << "Finish loading camera intrinsic to tracker";
+    // tracker->fisheye_mask = monocam->mask.clone();
+    // tracker_tag[name] = trackerData.size();
+    // trackerData.push_back(tracker);
+
 }
 
 FrontEndResultsSynchronizer::FrontEndResultsSynchronizer(){
@@ -151,5 +190,18 @@ MCVIOcamera(sensor_type type,
     this->ROW = row;
 
     if(compressedType)
-        sub = this->frontend_node->adverttise<sensor_msgs::CompressedImage>(topic, 5, boost::bind(&MCVIO::Compressedimg_callback, _1, MCVIOfrontend_));
+        sub = this->frontend_node->advertise<sensor_msgs::CompressedImage>(topic, 5, boost::bind(&MCVIO::Compressedimg_callback, _1, MCVIOfrontend_));
+    else
+        sub = this->frontend_node->advertise<sensor_msgs::Image>(topic, 5, boost::bind(&MCVIO::img_callback, _1, MCVIOfrontend_));
+
+    mask = cv::Mat(row, col, CV_8UC1, cv::Scalar(255));
+    first_image_flag = true;
+    first_image_time = 0;
+    std::string match_img_topic = this->name + "/feature_image";
+    pub_match = this->frontend_node->advertise<sensor_msgs::Image>(match_img_topic.c_str(), 5);
+}
+
+//TODO:add init_visualization
+void MCVIOcamera::init_visualization(){
+
 }

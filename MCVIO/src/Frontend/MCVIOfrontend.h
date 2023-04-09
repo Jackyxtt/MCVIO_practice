@@ -38,6 +38,11 @@ namespace MCVIO
 
         string config_file;
 
+        unordered_map<string, int> sensors_tag;
+        unordered_map<string, int> tracker_tag;
+
+        vector<std::shared_ptr<MCVIOsensor>> sensors;
+
         FrontEndResultsSynchronizer synchronizer;
 
         bool compressedType;
