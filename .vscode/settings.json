@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "geometry": "cpp",
+        "core": "cpp",
+        "superlusupport": "cpp",
+        "*.evaluator": "cpp",
+        "*.traits": "cpp",
+        "bvh": "cpp",
+        "eulerangles": "cpp",
+        "fft": "cpp",
+        "specialfunctions": "cpp"
+    }
+}

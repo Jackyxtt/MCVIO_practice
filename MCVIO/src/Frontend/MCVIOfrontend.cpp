@@ -1,5 +1,5 @@
 #include "MCVIOfrontend.h"
-#include "Frontend/sensors.h"
+#include "sensors.h"
 
 using namespace MCVIO;
 using namespace std;

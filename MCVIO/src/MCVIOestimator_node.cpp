@@ -1,5 +1,6 @@
 #include <ros/ros.h>
 #include "Estimator/parameters.h"
+#include "Frontend/MCVIOfrontend.h"
 
 using namespace std;
 using namespace MCVIO;
@@ -14,6 +15,6 @@ int main(int argc, char **argv){
 
     MCVIOfrontend frontend(config_file);
     MCVIOfrontend_ = &frontend;
-    frontend.setUpROS(nullptr, &n);
+    // frontend.setUpROS(nullptr, &n);
 
 }

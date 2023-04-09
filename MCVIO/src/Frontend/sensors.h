@@ -1,4 +1,11 @@
 #include<ros/ros.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/CompressedImage.h>
+#include <queue>
+
+#include <Eigen/Core>
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
 
 using namespace std;
 
@@ -13,7 +20,8 @@ namespace MCVIO{
     struct CameraProcessingResults
     {
         double timestamp;
-        FeatureTrackerResults features;
+        // TODO:add FeatureTrackerResults
+        // FeatureTrackerResults features;
     };
 
     class FrontEndResultsSynchronizer
@@ -31,7 +39,8 @@ namespace MCVIO{
         std::vector<std::shared_ptr<std::queue<std::shared_ptr<CameraProcessingResults>>>> results;
         // std::vector<std::pair<string, std::shared_ptr<CameraProcessingResults>>> current_result;
         unordered_map<string, int> tracker_tag;
-        std::queue<std::shared_ptr<SyncCameraProcessingResults>> sync_results;
+        // TODO::add SyncCameraProcessingResults
+        // std::queue<std::shared_ptr<SyncCameraProcessingResults>> sync_results;
     };
 
     class MCVIOsensor
@@ -66,7 +75,7 @@ namespace MCVIO{
                     Eigen::Vector3d T,
                     double fx, double fy, double cx, double cy, bool fisheye,
                     int w, int h, bool compressedType);
-        )
+        
 
         virtual ~MCVIOcamera(){};
 
@@ -104,7 +113,7 @@ namespace MCVIO{
         // TODO:按照原来的代码加上本函数
         // CameraPoseVisualization cameraposevisual, keyframebasevisual;
 
-    }
+    };
 
 
 }

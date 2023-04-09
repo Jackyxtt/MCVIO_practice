@@ -7,6 +7,9 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/eigen.hpp>
+#include "sensors.h"
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/CompressedImage.h>
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -51,13 +54,13 @@ namespace MCVIO
     inline void
     img_callback(const sensor_msgs::Image::ConstPtr color_msg, MCVIOfrontend *frontend)
     {
-        frontend->processImage(color_msg);
+        // frontend->processImage(color_msg);
     };
 
     inline void
     Compressedimg_callback(const sensor_msgs::CompressedImage::ConstPtr color_msg, MCVIOfrontend *frontend)
     {
-        frontend->processImage(color_msg);
+        // frontend->processImage(color_msg);
     };
 
     inline MCVIOfrontend* MCVIOfrontend_;

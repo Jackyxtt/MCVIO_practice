@@ -58,8 +58,8 @@ add_executable(mcvio_estimator
   # src/Frontend/feature_tracker/feature_tracker.cpp
   # # src/Frontend/feature_tracker/vpi_feature_tracker.cpp
   
-  # src/Frontend/sensors.cpp
-  # src/Frontend/MCVIOfrontend.cpp
+  src/Frontend/sensors.cpp
+  src/Frontend/MCVIOfrontend.cpp
 
   # src/Estimator/MCVIOestimator.cpp
   # src/Estimator/MCVIOfeature_manager.cpp
