@@ -1,6 +1,9 @@
 #include "MCVIOfrontend.h"
 #include <glog/logging.h>
 #include <ros/ros.h>
+#include <nav_msgs/Odometry.h>
+#include <visualization_msgs/Marker.h>
+
 
 using namespace MCVIO;
 using namespace std;
@@ -55,7 +58,7 @@ void MCVIOfrontend::addSensors(cv::FileStorage &fsSettings, ros::NodeHandle *pri
         }
 
     }
-    //Todo:
+ 
     synchronizer.tracker_tag = tracker_tag;
     
 }
@@ -126,7 +129,7 @@ void MCVIOfrontend::addMonocular(cv::FileNode &fsSettings, ros::NodeHandle *priv
     }
 
     // add new feature tracker and associate it with the camera
-    // monocam->tracker_idx = trackerData.size();
+    monocam->tracker_idx = trackerData.size();
     // sensors_tag[name] = make_pair(sensors.size(), trackerData.size());
     sensors_tag[name] = sensors.size();
 
@@ -134,20 +137,20 @@ void MCVIOfrontend::addMonocular(cv::FileNode &fsSettings, ros::NodeHandle *priv
 
 
     // TODO:完善FeatureTracker类
-    // std::shared_ptr<FeatureTracker> tracker =
-    //     std::make_shared<FeatureTracker>(FeatureTracker());
+    std::shared_ptr<FeatureTracker> tracker =
+        std::make_shared<FeatureTracker>(FeatureTracker());
 
-    // tracker->cam = monocam;
+    tracker->cam = monocam;
 
 
     // register camera
     string config_file;
     fsSettings["camera_config_file"] >> config_file;
-    // tracker->readIntrinsicParameter(config_file);//tracker从yaml文件中读取相机参数
+    tracker->readIntrinsicParameter(config_file);//tracker从yaml文件中读取相机参数
     LOG(INFO) << "Finish loading camera intrinsic to tracker";
-    // tracker->fisheye_mask = monocam->mask.clone();
-    // tracker_tag[name] = trackerData.size();
-    // trackerData.push_back(tracker);
+    tracker->fisheye_mask = monocam->mask.clone();
+    tracker_tag[name] = trackerData.size();
+    trackerData.push_back(tracker);
 
 }
 
@@ -210,7 +213,22 @@ MCVIOcamera::MCVIOcamera(sensor_type type,
     pub_match = this->frontend_node->advertise<sensor_msgs::Image>(match_img_topic.c_str(), 5);
 }
 
-//TODO:add init_visualization
 void MCVIOcamera::init_visualization(){
+    
+    pub_cam_pose = this->frontend_node->advertise<nav_msgs::Odometry>(this->name + "/camera_pose", 1000); 
+    if (visualize){
+        cameraposevisual = CameraPoseVisualization(0, 1, 0, 1);
+        keyframebasevisual = CameraPoseVisualization(0, 0, 1, 1);
 
+        cameraposevisual.setns(this->name + "_pose_visualization");
+        cameraposevisual.setScale(1);
+        cameraposevisual.setLineWidth(0.05);
+        cameraposevisual.setns(this->name + "_KF_visualization");
+        keyframebasevisual.setScale(1);
+        keyframebasevisual.setLineWidth(0.05);
+
+        pub_cam_pose_visual = this->frontend_node->advertise<visualization_msgs::MarkerArray>(this->name + "/camera_pose_visual", 1000);
+        pub_slidewindow_camera_pose =
+            this->frontend_node->advertise<visualization_msgs::MarkerArray>(this->name + "/slidewindow_pose", 1000);                
+    }
 }

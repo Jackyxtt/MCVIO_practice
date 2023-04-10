@@ -26,6 +26,13 @@ namespace MCVIO{
         // FeatureTrackerResults features;
     };
 
+    struct SyncCameraProcessingResults
+    {
+        double sync_timestamp;
+        std::vector<std::shared_ptr<CameraProcessingResults>>results;
+        std::vector<bool> isEmpty;
+    };
+
     class FrontEndResultsSynchronizer
     {
     public:
@@ -41,8 +48,8 @@ namespace MCVIO{
         std::vector<std::shared_ptr<std::queue<std::shared_ptr<CameraProcessingResults>>>> results;
         // std::vector<std::pair<string, std::shared_ptr<CameraProcessingResults>>> current_result;
         unordered_map<string, int> tracker_tag;
-        // TODO::add SyncCameraProcessingResults
-        // std::queue<std::shared_ptr<SyncCameraProcessingResults>> sync_results;
+        
+        std::queue<std::shared_ptr<SyncCameraProcessingResults>> sync_results;
     };
 
     class MCVIOsensor
@@ -113,8 +120,7 @@ namespace MCVIO{
         bool visualize = true;
         ros::Publisher pub_cam_pose, pub_cam_pose_visual, pub_slidewindow_camera_pose;
         
-        // TODO:按照原来的代码加上本函数
-        // CameraPoseVisualization cameraposevisual, keyframebasevisual;
+        CameraPoseVisualization cameraposevisual, keyframebasevisual;
 
     };
 

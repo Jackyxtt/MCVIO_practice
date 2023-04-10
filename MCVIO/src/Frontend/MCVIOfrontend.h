@@ -35,6 +35,15 @@ namespace MCVIO
         void
         addMonocular(cv::FileNode &fsSettings, ros::NodeHandle *private_node);
     public:
+        // data interface
+
+    public:
+        // tracker
+        //
+        vector<std::shared_ptr<TrackerBase>> trackerData;
+    
+    
+    public:
         ros::NodeHandle *pub_node_;
         ros::NodeHandle *private_node_;
 

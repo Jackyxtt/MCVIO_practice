@@ -73,7 +73,7 @@ add_executable(mcvio_estimator
 
   # src/utility/utility.cpp
   # src/utility/visualization.cpp
-  # src/utility/CameraPoseVisualization.cpp
+  src/utility/CameraPoseVisualization.cpp
 
   # src/Estimator/initial/solve_5pts.cpp
   # src/Estimator/initial/initial_sfm.cpp
