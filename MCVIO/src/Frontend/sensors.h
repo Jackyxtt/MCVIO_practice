@@ -1,11 +1,13 @@
-#include<ros/ros.h>
+#include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <queue>
 
-#include <Eigen/Core>
+#include <cv_bridge/cv_bridge.h>
+
+// #include <Eigen/Core>
 #include <Eigen/Dense>
-#include <Eigen/Geometry>
+// #include <Eigen/Geometry>
 
 using namespace std;
 
@@ -70,6 +72,7 @@ namespace MCVIO{
     public:
         MCVIOcamera(sensor_type type,
                     string topic,
+                    string name,
                     ros::NodeHandle *node,
                     Eigen::Matrix3d R,
                     Eigen::Vector3d T,

@@ -4,16 +4,18 @@
 #include<ros/ros.h>
 #include<string>
 
+#include<Eigen/Dense>
+
+#include <cv_bridge/cv_bridge.h>
+
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/eigen.hpp>
+
 #include "sensors.h"
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
-
-#include <Eigen/Core>
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
+#include <std_msgs/Bool.h>
 
 using namespace std;
 

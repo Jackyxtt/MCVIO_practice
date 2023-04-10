@@ -1,5 +1,6 @@
 #include "MCVIOfrontend.h"
-#include "sensors.h"
+#include <glog/logging.h>
+#include <ros/ros.h>
 
 using namespace MCVIO;
 using namespace std;
@@ -14,7 +15,7 @@ void MCVIOfrontend::setUpROS(ros::NodeHandle *pub_node, ros::NodeHandle *private
     this->pub_node_ = pub_node;
     this->private_node_ = private_node;
     cv::FileStorage fsSettings(config_file, cv::FileStorage::READ);
-    pub_restart = private_node_->advertise<std::msgs::Bool>("restart", 1000);
+    pub_restart = private_node_->advertise<std_msgs::Bool>("restart", 1000);
     addSensors(fsSettings, private_node);
 }
 
@@ -62,7 +63,8 @@ void MCVIOfrontend::addSensors(cv::FileStorage &fsSettings, ros::NodeHandle *pri
 void MCVIOfrontend::addMonocular(cv::FileNode &fsSettings, ros::NodeHandle *private_node){
     LOG(INFO) << "Add monocular";
     cv::Mat cv_R, cv_T;
-    Eigen::Matrix3d R, T;
+    Eigen::Matrix3d R;
+    Eigen::Vector3d T;
 
     fsSettings["extrinsicRotation_imu_camera"] >> cv_R;
     fsSettings["extrinsicTranslation_imu_camera"] >> cv_T;
@@ -124,7 +126,7 @@ void MCVIOfrontend::addMonocular(cv::FileNode &fsSettings, ros::NodeHandle *priv
     }
 
     // add new feature tracker and associate it with the camera
-    monocam->tracker_idx = trackerData.size();
+    // monocam->tracker_idx = trackerData.size();
     // sensors_tag[name] = make_pair(sensors.size(), trackerData.size());
     sensors_tag[name] = sensors.size();
 
@@ -158,6 +160,12 @@ void FrontEndResultsSynchronizer::addPool(std::string cam_name){
     results.push_back(std::make_shared<std::queue<std::shared_ptr<CameraProcessingResults>>>());
 }
 
+bool MCVIOcamera::setFisheye(string fisheye_path){
+    mask = cv::imread(fisheye_path, 0);
+    LOG(INFO) << "Fisheye mask path: " << fisheye_path;
+    return true; 
+}
+
 MCVIOsensor::MCVIOsensor(sensor_type stype,
                          string topic,
                          string name,
@@ -173,13 +181,14 @@ MCVIOsensor::MCVIOsensor(sensor_type stype,
     this->name = name;
 }
 
-MCVIOcamera(sensor_type type,
+MCVIOcamera::MCVIOcamera(sensor_type type,
             string topic,
+            string name,
             ros::NodeHandle *node,
             Eigen::Matrix3d R,
             Eigen::Vector3d T,
             double fx, double fy, double cx, double cy, bool fisheye,
-            int w, int h, bool compressedType) : MCVIOsensor(type, topic, name, node, R, T)
+            int col, int row, bool compressedType) : MCVIOsensor(type, topic, name, node, R, T)
 {
     this->fx = fx;
     this->fy = fy;
@@ -190,9 +199,9 @@ MCVIOcamera(sensor_type type,
     this->ROW = row;
 
     if(compressedType)
-        sub = this->frontend_node->advertise<sensor_msgs::CompressedImage>(topic, 5, boost::bind(&MCVIO::Compressedimg_callback, _1, MCVIOfrontend_));
+        sub = this->frontend_node->subscribe<sensor_msgs::CompressedImage>(topic, 5, boost::bind(&MCVIO::Compressedimg_callback, _1, MCVIOfrontend_));
     else
-        sub = this->frontend_node->advertise<sensor_msgs::Image>(topic, 5, boost::bind(&MCVIO::img_callback, _1, MCVIOfrontend_));
+        sub = this->frontend_node->subscribe<sensor_msgs::Image>(topic, 5, boost::bind(&MCVIO::img_callback, _1, MCVIOfrontend_));
 
     mask = cv::Mat(row, col, CV_8UC1, cv::Scalar(255));
     first_image_flag = true;
