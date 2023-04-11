@@ -232,3 +232,117 @@ void MCVIOcamera::init_visualization(){
             this->frontend_node->advertise<visualization_msgs::MarkerArray>(this->name + "/slidewindow_pose", 1000);                
     }
 }
+
+void MCVIOfrontend::processImage(const sensor_msg::CompressedImageConstPtr &color_msg)
+{
+    // step0: extract frame_id and find associate trackerData
+    auto frame_id = color_msg->header.frame_id;
+    int sensor_idx = sensors_tag[frame_id];
+    int tracker_idx = tracker_tag[frame_id];
+    std::shared_ptr<MCVIOsensor> sensor = sensors[sensor_idx]; //根据sensor_idx确认用哪个相机
+    std::shared_ptr<MCVIOcamera> cam = dynamic_pointer_cast<MCVIOcamera>(sensor);
+    auto &tracker = trackerData[tracker_idx];
+#if SHOW_LOG_DEBUG
+    LOG(INFO) << "Process image from:" << frame_id;
+#endif
+    // step1: first image, frequence control and format conversion
+    if (cam->first_image_flag)
+    {
+#if SHOW_LOG_DEBUG
+        LOG(INFO) << cam->name << ": first image [" << cam->ROW << "," << cam->COL << "]";
+#endif
+        cam->first_image_flag = false;
+        cam->first_image_time = color_msg->header.stamp.toSec();
+        cam->last_image_time = color_msg->header.stamp.toSec();
+    }
+
+    if (color_msg->header.stamp.toSec() - cam->last_image_time > 1.0 || color_msg->header.stamp.toSec() < cam->last_image_time)
+    {
+        ROS_WARN("Camera %d's image discontinue! reset the feature tracker!", sensor_idx);
+        cam->first_image_flag = true;
+        cam->last_image_time = 0;
+        cam->pub_count = 1;
+        std_msgs::Bool restart_flag;
+        restart_flag.data = true;
+        pub_restart.publish(restart_flag);
+        return;        
+    }
+
+    cam->last_image_time = color_msg->header.stamp.toSec();
+    // frequency control
+    // 到现在为止经过的帧数 / 时间 <= 帧率
+    if (round(1.0 * cam->pub_count / (color_msg->header.stamp.toSec() - cam->first_image_time)) <= cam->FREQ)
+    {
+        cam->PUB_THIS_FRAME = true;
+        // reset the frequency control 真实帧率相比于设定帧率过慢
+        if (abs(1.0 * cam->pub_count / (color_msg->header.stamp.toSec() - cam->first_image_time) - cam->FREQ) < 0.01 * cam->FREQ)
+        {
+            cam->first_image_time = color_msg->header.stamp.toSec();
+            cam->pub_count = 0;
+        }
+    }
+    else
+        cam->PUB_THIS_FRAME = false;    
+
+
+    cv_bridge::CvImageConstPtr ptr;
+
+    ptr = cv_bridge::toCvCopy(color_msg, sensor_msg::image_encodings::MONO8);
+
+    // step2: process image and achieve feature detection
+
+    cv::Mat show_img = ptr->image;
+    TicToc t_r;
+    tracker->readImage(ptr->image.rowRange(0, cam->ROW), color_msg->header.stamp.toSec());
+
+#if SHOW_UNDISTORTION
+
+#endif
+    // update all id in ids[]
+    // If has ids[i] == -1 (newly added pts by cv::goodFeaturesToTrack), substitute by gloabl id counter (n_id)
+    for (unsigned int i = 0;; i++)
+    {
+        bool completed = false;
+        completed |= tracker->updateID(i); //TODO:为什么不直接判断tracker->updateID(i)，为false就结束循环
+        if (!completed)
+            break;
+    }
+    ROS_DEBUG("Complete update ids");
+
+    // step3: assign depth for visual features
+    if (cam->PUB_THIS_FRAME)
+#if SHOW_LOG_DEBUG
+        LOG(INFO)
+            << "Pub this frame";
+        ROS_DEBUG("Pub this frame");
+#endif
+        cam->pub_count++;    
+
+        /// Publish FeatureTrack Result
+        std::shared_ptr<CameraProcessingResults> output = std::make_shared<CameraProcessingResults>();
+        output->timestamp = color_msg->header.stamp.toSec();
+
+        // 3.2 publish featureTrack result
+        synchronizer.result_mutexes[tracker_tag[frame_id]]->lock(); //有多少个相机，就有多少个tracker_tag，使用对应tracker_tag的互斥锁
+        tracker->Lock();//该函数为空
+        for (size_t j = 0; j < tracker->ids.size(); j++){
+            if (track_cnt[j] > 1){
+                geometry_msg::Point32 p;
+                cv::Point2f p_uv, v;
+                int p_id;
+                tracker->getPt(j, p_id, p, p_uv, v);
+
+                cv::Point2f pts(p.x, p.y);
+                Eigen::Matrix<double, 8, 1> xyz_uv_velocity;
+                xyz_uv_velocity << p.x, p.y, p.z, p_uv.x, p_uv.y, v.x, v.y, -1;
+
+                output->features[p_id].emplace_back(xyz_uv_velocity);
+            }
+        }
+
+
+}
+
+void MCVIOfrontend::processImage(const sensor_msg::ImageConstPtr &color_msg){
+
+}

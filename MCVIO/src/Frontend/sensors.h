@@ -22,8 +22,8 @@ namespace MCVIO{
     struct CameraProcessingResults
     {
         double timestamp;
-        // TODO:add FeatureTrackerResults
-        // FeatureTrackerResults features;
+        
+        FeatureTrackerResults features;
     };
 
     struct SyncCameraProcessingResults

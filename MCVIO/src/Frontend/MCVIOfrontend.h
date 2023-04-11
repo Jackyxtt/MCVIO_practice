@@ -65,13 +65,13 @@ namespace MCVIO
     inline void
     img_callback(const sensor_msgs::Image::ConstPtr color_msg, MCVIOfrontend *frontend)
     {
-        // frontend->processImage(color_msg);
+        frontend->processImage(color_msg);
     };
 
     inline void
     Compressedimg_callback(const sensor_msgs::CompressedImage::ConstPtr color_msg, MCVIOfrontend *frontend)
     {
-        // frontend->processImage(color_msg);
+        frontend->processImage(color_msg);
     };
 
     inline MCVIOfrontend* MCVIOfrontend_;
