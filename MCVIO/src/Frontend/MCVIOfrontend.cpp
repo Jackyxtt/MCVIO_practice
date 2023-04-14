@@ -3,6 +3,8 @@
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
+#include "feature_tracker/feature_tracker.h"
+#include "../Estimator/parameters.h"
 
 
 using namespace MCVIO;
@@ -135,7 +137,6 @@ void MCVIOfrontend::addMonocular(cv::FileNode &fsSettings, ros::NodeHandle *priv
 
     sensors.push_back(monocam);
 
-
     // TODO:完善FeatureTracker类
     std::shared_ptr<FeatureTracker> tracker =
         std::make_shared<FeatureTracker>(FeatureTracker());
@@ -233,7 +234,7 @@ void MCVIOcamera::init_visualization(){
     }
 }
 
-void MCVIOfrontend::processImage(const sensor_msg::CompressedImageConstPtr &color_msg)
+void MCVIOfrontend::processImage(const sensor_msgs::CompressedImageConstPtr &color_msg)
 {
     // step0: extract frame_id and find associate trackerData
     auto frame_id = color_msg->header.frame_id;
@@ -287,7 +288,7 @@ void MCVIOfrontend::processImage(const sensor_msg::CompressedImageConstPtr &colo
 
     cv_bridge::CvImageConstPtr ptr;
 
-    ptr = cv_bridge::toCvCopy(color_msg, sensor_msg::image_encodings::MONO8);
+    ptr = cv_bridge::toCvCopy(color_msg, sensor_msgs::image_encodings::MONO8);
 
     // step2: process image and achieve feature detection
 
@@ -310,7 +311,7 @@ void MCVIOfrontend::processImage(const sensor_msg::CompressedImageConstPtr &colo
     ROS_DEBUG("Complete update ids");
 
     // step3: assign depth for visual features
-    if (cam->PUB_THIS_FRAME)
+    if (cam->PUB_THIS_FRAME){
 #if SHOW_LOG_DEBUG
         LOG(INFO)
             << "Pub this frame";
@@ -326,8 +327,8 @@ void MCVIOfrontend::processImage(const sensor_msg::CompressedImageConstPtr &colo
         synchronizer.result_mutexes[tracker_tag[frame_id]]->lock(); //有多少个相机，就有多少个tracker_tag，使用对应tracker_tag的互斥锁
         tracker->Lock();//该函数为空
         for (size_t j = 0; j < tracker->ids.size(); j++){
-            if (track_cnt[j] > 1){
-                geometry_msg::Point32 p;
+            if (tracker->track_cnt[j] > 1){
+                geometry_msgs::Point32 p;
                 cv::Point2f p_uv, v;
                 int p_id;
                 tracker->getPt(j, p_id, p, p_uv, v);
@@ -339,10 +340,239 @@ void MCVIOfrontend::processImage(const sensor_msg::CompressedImageConstPtr &colo
                 output->features[p_id].emplace_back(xyz_uv_velocity);
             }
         }
+        tracker->Unlock();//该函数为空
 
+#if SHOW_LOG_DEBUG
+        LOG(INFO) << "Cam: " << frame_id << " feature size: " << output->features.size();
+#endif        
+        synchronizer.results[tracker_tag[frame_id]]->push(output);
+        synchronizer.result_mutexes[tracker_tag[frame_id]]->unlock();        
 
+        //skip the first image; since no optical speed on frist image
+        if (!cam->init_pub){
+            cam->init_pub = 1;
+        }
+        else
+        {
+            if (pub_img.getNumSubscribers() != 0){
+
+            }
+        }
+
+        // step 4. Show image with tracked points in rviz (by topic pub_match)  
+        if (SHOW_TRACK)
+        {
+            cv_bridge::CvImageConstPtr ptr1 = cv_bridge::toCvCopy(color_msg, sensor_msgs::image_encodings::BGR8);
+
+            cv::Mat tmp_img = ptr1->image;
+
+            for (size_t j = 0; j < tracker->ids.size(); j++){
+                cv::Point2f p;
+                tracker->getCurPt(j,p);
+                double len = std::min(1.0, 1.0 * tracker->track_cnt[j] / WINDOW_SIZE);
+                cv::circle(tmp_img, p, 2, cv::Scalar(255 * (1 - len), 0, 255 * len), 2);
+            }
+
+            // 修改tmp_img，也会导致ptr1->image改变    
+            // cv::circle(tmp_img, {200, 200}, 30, cv::Scalar(255, 255, 255), 2);
+
+            cam->pub_match.publish(ptr->toImageMsg());
+
+        }
+    }
 }
 
-void MCVIOfrontend::processImage(const sensor_msg::ImageConstPtr &color_msg){
+void MCVIOfrontend::processImage(const sensor_msgs::ImageConstPtr &color_msg){
+    // step0: extract frame_id and find associate trackerData
+    auto frame_id = color_msg->header.frame_id;
+    int sensor_idx = sensors_tag[frame_id];
+    int tracker_idx = tracker_tag[frame_id];
+    std::shared_ptr<MCVIOsensor> sensor = sensors[sensor_idx];
+    std::shared_ptr<MCVIOcamera> cam = dynamic_pointer_cast<MCVIOcamera>(sensor);
+    auto &tracker = trackerData[tracker_idx];
+#if SHOW_LOG_DEBUG
+    LOG(INFO) << "Process image from:" << frame_id;
+#endif
+    // step1: first image, frequence control and format conversion
+    if (cam->first_image_flag)
+    {
+#if SHOW_LOG_DEBUG
+        LOG(INFO) << cam->name << ": first image [" << cam->ROW << "," << cam->COL << "]";
+#endif
+        cam->first_image_flag = false;
+        cam->first_image_time = color_msg->header.stamp.toSec();
+        cam->last_image_time = color_msg->header.stamp.toSec();
 
+    }
+    // detect unstable camera stream
+    if (color_msg->header.stamp.toSec() - cam->last_image_time > 1.0 || color_msg->header.stamp.toSec() < cam->last_image_time)
+    {
+        ROS_WARN("Camera %d's image discontinue! reset the feature tracker!", sensor_idx);
+        cam->first_image_flag = true;
+        cam->last_image_time = 0;
+        cam->pub_count = 1;
+        std_msgs::Bool restart_flag;
+        restart_flag.data = true;
+        pub_restart.publish(restart_flag);
+        return;
+    }
+
+    cam->last_image_time = color_msg->header.stamp.toSec();
+    // frequency control
+    if (round(1.0 * cam->pub_count / (color_msg->header.stamp.toSec() - cam->first_image_time)) <= cam->FREQ)
+    {
+        cam->PUB_THIS_FRAME = true;
+        // reset the frequency control
+        if (abs(1.0 * cam->pub_count / (color_msg->header.stamp.toSec() - cam->first_image_time) - cam->FREQ) < 0.01 * cam->FREQ)
+        {
+            cam->first_image_time = color_msg->header.stamp.toSec();
+            cam->pub_count = 0;
+        }
+    }
+    else
+        cam->PUB_THIS_FRAME = false;
+    // encodings in ros: http://docs.ros.org/diamondback/api/sensor_msgs/html/image__encodings_8cpp_source.html
+    // color has encoding RGB8
+    cv_bridge::CvImageConstPtr ptr;
+    if (color_msg->encoding == "8UC1")
+    {
+        // shan:why 8UC1 need this operation? Find answer:https://github.com/ros-perception/vision_opencv/issues/175
+        sensor_msgs::Image img;
+        img.header = color_msg->header;
+        img.height = color_msg->height;
+        img.width = color_msg->width;
+        img.is_bigendian = color_msg->is_bigendian;
+        img.step = color_msg->step;
+        img.data = color_msg->data;
+        img.encoding = "mono8";
+        ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
+        ROS_INFO("MONO_FORMAT!");
+    }
+    else
+    {
+        ptr = cv_bridge::toCvCopy(color_msg, sensor_msgs::image_encodings::MONO8);
+    }
+    cv::Mat rgb;
+
+    cvtColor(ptr->image, rgb, cv::COLOR_GRAY2BGR);
+
+    if (rgb.type() != CV_8UC3)
+    {
+        ROS_ERROR_STREAM("input image type != CV_8UC3");
+    }
+    // step2: process image and achieve feature detection
+
+    cv::Mat show_img = ptr->image;
+    TicToc t_r;
+    tracker->readImage(ptr->image.rowRange(0, cam->ROW), color_msg->header.stamp.toSec());
+    // always 0
+#if SHOW_UNDISTORTION
+    tracker->.showUndistortion("undistrotion_" + std::to_string(i));
+    // }
+    ROS_DEBUG("Finish processing tracker data");
+#endif
+    // update all id in ids[]
+    // If has ids[i] == -1 (newly added pts by cv::goodFeaturesToTrack), substitute by gloabl id counter (n_id)
+    for (unsigned int i = 0;; i++)
+    {
+        bool completed = false;
+        completed |= tracker->updateID(i);
+        if (!completed)
+            break;
+    }
+    ROS_DEBUG("Complete update ids");
+    // step3: assign depth for visual features
+    if (cam->PUB_THIS_FRAME)
+    {
+#if SHOW_LOG_DEBUG
+        LOG(INFO)
+            << "Pub this frame";
+        ROS_DEBUG("Pub this frame");
+#endif
+        cam->pub_count++;
+
+        /// Publish FeatureTrack Result
+        // ROS_DEBUG("Init FrontEndResult output");
+        std::shared_ptr<CameraProcessingResults> output = std::make_shared<CameraProcessingResults>();
+        output->timestamp = color_msg->header.stamp.toSec();
+        // ROS_DEBUG("Finish init %d", output->cloud_ptr->size());
+
+        // 3.2 publish featureTrack result
+        // cam->lidar_mutex.lock();
+        synchronizer.result_mutexes[tracker_tag[frame_id]]->lock();
+        tracker->Lock();
+        // for (size_t j = 0; j < ids.size(); j++)
+        for (size_t j = 0; j < tracker->ids.size(); j++)
+        {
+            if (tracker->track_cnt[j] > 1)
+            {
+                geometry_msgs::Point32 p;
+                cv::Point2f p_uv, v;
+                int p_id;
+                tracker->getPt(j, p_id, p, p_uv, v);
+
+                cv::Point2f pts(p.x, p.y);
+                Eigen::Matrix<double, 8, 1> xyz_uv_velocity;
+                xyz_uv_velocity << p.x, p.y, p.z, p_uv.x, p_uv.y, v.x, v.y, -1;
+                // ROS_DEBUG("Set feature[%d] into output", p_id);
+                // image[feature_id].emplace_back(camera_id,  xyz_uv_velocity_depth);
+                output->features[p_id].emplace_back(xyz_uv_velocity);
+            }
+        }
+        tracker->Unlock();
+        // cam->lidar_mutex.unlock();
+        // synchronizer.result_mutexes[tracker_tag[frame_id]]->unlock();
+        // datamuex_->lock();
+        // need to modify fontend_output_queue
+#if SHOW_LOG_DEBUG
+        LOG(INFO) << "Cam: " << frame_id << " feature size: " << output->features.size();
+#endif
+        synchronizer.results[tracker_tag[frame_id]]->push(output);
+        synchronizer.result_mutexes[tracker_tag[frame_id]]->unlock();
+        // fontend_output_queue->push(output);
+        // datamuex_->unlock();
+#if MERGELASER
+        // visualize features in cartesian 3d space (including the feature without depth (default 1))
+        if (pub_depth_points.getNumSubscribers() != 0)
+            publishCloud(&pub_depth_points, features_3d_sphere, feature_points->header.stamp, Laser_Frame);
+#endif
+        // skip the first image; since no optical speed on frist image
+        if (!cam->init_pub)
+        {
+            cam->init_pub = 1;
+        }
+        else
+        {
+            if (pub_img.getNumSubscribers() != 0)
+            {
+                // ROS_DEBUG("publish");
+                // pub_img.publish(feature_points); //"feature"
+            }
+        }
+        // step 4. Show image with tracked points in rviz (by topic pub_match)
+        if (SHOW_TRACK)
+        {
+            ptr = cv_bridge::cvtColor(ptr, sensor_msgs::image_encodings::BGR8);
+            // cv::Mat stereo_img(ROW * NUM_OF_CAM, COL, CV_8UC3);
+            cv::Mat stereo_img = ptr->image;
+
+            cv::Mat tmp_img = stereo_img.rowRange(0, 1 * cam->ROW);
+
+            cv::cvtColor(show_img, tmp_img, CV_GRAY2RGB); //??seems useless?
+            tracker->Lock();
+            for (size_t j = 0; j < tracker->ids.size(); j++)
+            {
+                cv::Point2f p;
+                tracker->getCurPt(j, p);
+                double len = std::min(1.0, 1.0 * tracker->track_cnt[j] / WINDOW_SIZE);
+                // cv::circle(tmp_img, tracker->cur_pts[j], 2, cv::Scalar(255 * (1 - len), 0, 255 * len), 2);
+                cv::circle(tmp_img, p, 2, cv::Scalar(255 * (1 - len), 0, 255 * len), 2);
+            }
+            tracker->Unlock();
+
+            cam->pub_match.publish(ptr->toImageMsg());
+        }
+        // }
+        // ROS_INFO("whole feature tracker processing costs: %f", t_r.toc());
+    }
 }

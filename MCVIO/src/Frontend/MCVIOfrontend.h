@@ -11,8 +11,10 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/eigen.hpp>
+#include <geometry_msgs/PointStamped.h>
 
 #include "sensors.h"
+#include "feature_tracker/trackerbase.h"
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <std_msgs/Bool.h>
@@ -34,6 +36,12 @@ namespace MCVIO
 
         void
         addMonocular(cv::FileNode &fsSettings, ros::NodeHandle *private_node);
+    
+        void
+        processImage(const sensor_msgs::CompressedImageConstPtr &color_msg);
+
+        void
+        processImage(const sensor_msgs::ImageConstPtr &color_msg);
     public:
         // data interface
 
@@ -50,6 +58,7 @@ namespace MCVIO
         ros::Publisher pub_img, pub_match;
         ros::Publisher pub_restart;
 
+        int SHOW_TRACK = 1;
         string config_file;
 
         unordered_map<string, int> sensors_tag;

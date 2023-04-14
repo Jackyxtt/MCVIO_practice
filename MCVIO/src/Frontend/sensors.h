@@ -1,7 +1,11 @@
+#ifndef SENSORS_H
+#define SENSORS_H
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <queue>
+#include "MCVIOfrontend_data.h"
+#include "../utility/CameraPoseVisualization.h"
 
 #include <cv_bridge/cv_bridge.h>
 
@@ -126,3 +130,4 @@ namespace MCVIO{
 
 
 }
+#endif // SENSORS_H

@@ -1,14 +1,19 @@
 #pragma once
 
 #include <opencv2/opencv.hpp>
-#include <opencv/huigui/highgui.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 #include <Eigen/Dense>
 
 #include "camodocal/camera_models/CameraFactory.h"
 #include "camodocal/camera_models/CataCamera.h"
 #include "camodocal/camera_models/PinholeCamera.h"
+#include <geometry_msgs/PointStamped.h>
+#include <geometry_msgs/Point32.h>
 
+#include "../sensors.h"
+
+#include <ros/ros.h>
 
 namespace MCVIO
 {

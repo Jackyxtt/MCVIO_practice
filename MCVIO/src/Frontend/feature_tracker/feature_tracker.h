@@ -1,3 +1,5 @@
+#pragma once
+
 #include "trackerbase.h"
 #include "../../utility/tic_toc.h"
 
