@@ -54,14 +54,14 @@ catkin_package(CATKIN_DEPENDS camera_model)
 
 add_executable(mcvio_estimator
   
-  # src/Frontend/feature_tracker/trackerbase.cpp
-  # src/Frontend/feature_tracker/feature_tracker.cpp
+  src/Frontend/feature_tracker/trackerbase.cpp
+  src/Frontend/feature_tracker/feature_tracker.cpp
   # # src/Frontend/feature_tracker/vpi_feature_tracker.cpp
   
   src/Frontend/sensors.cpp
   src/Frontend/MCVIOfrontend.cpp
 
-  # src/Estimator/MCVIOestimator.cpp
+  src/Estimator/MCVIOestimator.cpp
   # src/Estimator/MCVIOfeature_manager.cpp
   src/Estimator/parameters.cpp
   
@@ -71,7 +71,7 @@ add_executable(mcvio_estimator
   # src/Estimator/factor/marginalization_factor.cpp
   # src/Estimator/factor/SE3AbsolutatePoseFactor.cpp
 
-  # src/utility/utility.cpp
+  src/utility/utility.cpp
   # src/utility/visualization.cpp
   src/utility/CameraPoseVisualization.cpp
 

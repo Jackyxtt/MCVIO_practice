@@ -1,7 +1,30 @@
 #pragma once
 
+#include <iostream>
+#include <queue>
+
+#include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
+#include <Eigen/Dense>
+
+#include "camodocal/camera_models/CameraFactory.h"
+#include "camodocal/camera_models/CataCamera.h"
+#include "camodocal/camera_models/PinholeCamera.h"
+
+
 #include "trackerbase.h"
 #include "../../utility/tic_toc.h"
+#include "../sensors.h"
+
+#include <ros/ros.h>
+
+#include "../../utility/utility.h"
+#include "../../utility/Twist.h"
+
+using namespace std;
+using namespace camodocal;
+using namespace Eigen;
 
 namespace MCVIO
 {
@@ -9,6 +32,8 @@ namespace MCVIO
     {
     public:
         FeatureTracker();
+
+        ~FeatureTracker();
 
         void readImage(const cv::Mat &_img, double _cur_time);
 
@@ -51,4 +76,6 @@ namespace MCVIO
         std::shared_ptr<MCVIO::MCVIOcamera> cam;
 
     };
+
+    extern ofstream log_tracking_point; 
 }

@@ -1,11 +1,23 @@
 #include "feature_tracker.h"
+#include <iostream>
 
 using namespace MCVIO;
+
+ofstream MCVIO::log_tracking_point;
 
 // 在原来的代码中，FeatureTracker::FeatureTracker() : TrackerBase()
 // 考虑到构造函数无法继承，这里不加冒号试试
 FeatureTracker::FeatureTracker(){
     n_id = 0;//特征点编号，遇到新特征点就进行自增
+    log_tracking_point.open
+    ("/home/ros/dev_workspace/MCVIO_practice/src/MCVIO/MCVIO/log/tracker/tracking_log.csv", 
+    ios::out| ios::trunc);
+    log_tracking_point << "#ids, track_cnt, u, v" << endl;
+}
+
+FeatureTracker::~FeatureTracker(){
+    LOG(INFO) << "xigou FeatureTracker()" << endl;
+    log_tracking_point.close();
 }
 
 //读取传入图像，通过光流法追踪上一帧的特征点，特征点去畸变
@@ -40,7 +52,7 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time){
         vector<uchar> status;
         vector<float> err;
         // forw_pts的数量和cur_img一样,通过status数组表示是否追踪成功
-        cv::calcOpticalFlowPyrLK(cur_img, forw_img, cur_pts, forw_pts, status, err, cv::size(21,21), 3);
+        cv::calcOpticalFlowPyrLK(cur_img, forw_img, cur_pts, forw_pts, status, err, cv::Size(21,21), 3);
         for(int i = 0; i < int(forw_pts.size()); i++){
             if(status[i] && !inBorder(forw_pts[i]))
                status[i] = 0;
@@ -103,6 +115,43 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time){
 
 }
 
+void FeatureTracker::setMask()
+{
+    if (cam->FISHEYE)
+        mask = fisheye_mask.clone();
+    else
+        mask = cv::Mat(cam->ROW, cam->COL, CV_8UC1, cv::Scalar(255));
+
+    // prefer to keep features that are tracked for long time
+    vector<pair<int, pair<cv::Point2f, int>>> cnt_pts_id;
+
+    for (unsigned int i = 0; i < forw_pts.size(); i++)
+        cnt_pts_id.push_back(make_pair(track_cnt[i], make_pair(forw_pts[i], ids[i])));
+
+    sort(cnt_pts_id.begin(), cnt_pts_id.end(), [](const pair<int, pair<cv::Point2f, int>> &a, const pair<int, pair<cv::Point2f, int>> &b)
+         { return a.first > b.first; });
+
+    forw_pts.clear();
+    ids.clear();
+    track_cnt.clear();
+
+    log_tracking_point << endl;
+
+    for (auto &it : cnt_pts_id)
+    {
+        if (mask.at<uchar>(it.second.first) == 255)
+        {
+            forw_pts.push_back(it.second.first);
+            ids.push_back(it.second.second);
+            track_cnt.push_back(it.first);
+            cv::circle(mask, it.second.first, cam->MIN_DIST, 0, -1);
+            // LOG(INFO) << "setMask" << endl; 
+            // log_tracking_point << "why no data " << endl;
+            log_tracking_point << it.second.second << "," << it.first << "," << it.second.first.x << "," << it.second.first.y << endl;
+        }
+    }
+}
+
 void FeatureTracker::addPoints()
 {
     for (auto &p : n_pts)
@@ -113,7 +162,6 @@ void FeatureTracker::addPoints()
     }
 }
 
-void setMask();
 
 bool FeatureTracker::updateID(unsigned int i){
     if (i < ids.size())
